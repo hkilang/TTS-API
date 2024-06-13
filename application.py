@@ -15,11 +15,18 @@ class SymbolError(Exception): pass
 def application(environ, start_response):
     code, content = app(environ.get("PATH_INFO"))
     if code == 200:
-        type = "audio/mpeg"
+        mime = "audio/mpeg"
     else:
-        type = "application/json"
+        mime = "application/json"
         content = json.dumps(content).encode()
-    start_response(str(code), [("Content-Type", type), ("Content-Length", str(len(content)))])
+    start_response(str(code), [
+        ("Content-Type", mime),
+        ("Content-Length", str(len(content))),
+        ("Access-Control-Allow-Origin", "*"),
+        ("Cache-Control", "max-age=604800, public"),
+        ("Connection", "Keep-Alive"),
+        ("Keep-Alive", "timeout=120"),
+    ])
     yield content
 
 def app(path):
