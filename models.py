@@ -745,11 +745,11 @@ class SynthesizerTrn(nn.Module):
         sid,
         tone,
         language,
-        noise_scale=0.667,
-        length_scale=1,
-        noise_scale_w=0.8,
+        noise_scale=0.8,
+        length_scale=1.0,
+        noise_scale_w=0.6,
         max_len=None,
-        sdp_ratio=0,
+        sdp_ratio=1.0,
         y=None,
     ):
         # x, m_p, logs_p, x_mask = self.enc_p(x, x_lengths, tone, language, bert)
