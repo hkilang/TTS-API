@@ -3,11 +3,11 @@
 		"log_interval": 200,
 		"eval_interval": 1000,
 		"seed": 42,
-		"epochs": 1000,
+		"epochs": 10000,
 		"learning_rate": 0.0002,
 		"betas": [0.8, 0.99],
 		"eps": 1e-09,
-		"batch_size": 12,
+		"batch_size": 8,
 		"bf16_run": false,
 		"lr_decay": 0.99995,
 		"segment_size": 16384,
@@ -21,8 +21,8 @@
 		"freeze_emo": false
 	},
 	"data": {
-		"training_files": "/data/train.list",
-		"validation_files": "/data/val.list",
+		"training_files": "./data/train.list",
+		"validation_files": "./data/val.list",
 		"max_wav_value": 32768.0,
 		"sampling_rate": 44100,
 		"filter_length": 2048,
@@ -61,7 +61,7 @@
 		"use_spectral_norm": false,
 		"gin_channels": 512,
 		"slm": {
-			"model": "/slm/wavlm-base-plus",
+			"model": "./slm/wavlm-base-plus",
 			"sr": 16000,
 			"hidden": 768,
 			"nlayers": 13,

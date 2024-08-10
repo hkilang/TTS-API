@@ -4,6 +4,7 @@ pad = "_"
 silent = "#"
 
 waitau_symbols = [
+    "X",
     "a",
     "ai",
     "ak",
@@ -92,6 +93,7 @@ waitau_symbols = [
 ]
 
 hakka_symbols = [
+    "X",
     "a",
     "aa",
     "aai",

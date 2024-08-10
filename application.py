@@ -1,5 +1,6 @@
 import gc
 import json
+from urllib.parse import parse_qs
 from io import BytesIO
 
 import torch
@@ -9,11 +10,12 @@ from commons import intersperse
 from symbols import pad, waitau_symbols, hakka_symbols, waitau_symbol_to_id, hakka_symbol_to_id
 from utils import load_model
 
+class VoiceError(Exception): pass
 class ToneError(Exception): pass
 class SymbolError(Exception): pass
 
 def application(environ, start_response):
-    code, content = app(environ.get("PATH_INFO"))
+    code, content = app(environ.get("PATH_INFO"), environ.get("QUERY_STRING"))
     if code == 200:
         mime = "audio/mpeg"
     else:
@@ -29,20 +31,25 @@ def application(environ, start_response):
     ])
     yield content
 
-def app(path):
+def app(path, query):
     try:
         function, language, text = path.encode("latin_1").decode().lower().strip("/").split("/")
         if function != "tts" or language not in {"waitau", "hakka"}: raise ValueError("Invalid URI segment")
+        voice = parse_qs(query.encode("latin_1").decode().lower(),
+                         keep_blank_values=True, strict_parsing=True, errors="strict").get("voice", "male")
+        if voice not in {"male", "female"}: raise VoiceError()
     except UnicodeError as err:
         codec, content, start, end, reason = err.args
         content = content[start:end]
         if isinstance(content, bytes): content = content.decode("latin_1")
         return (500, {"error": "Error while decoding URI: invalid characters", "message": content})
+    except VoiceError:
+        return (500, {"error": "Invalid voice", "message": f"The 'voice' query must be either 'male' or 'female' (defaults to 'male'), received '{voice}'"})
     except ValueError:
         return (404, {"error": "Page not found"})
     try:
         buffer = BytesIO()
-        sf.write(buffer, generate_audio(language, text.replace("+", " ")), 44100, format="MP3")
+        sf.write(buffer, generate_audio(language, voice, text.replace("+", " ")), 44100, format="WAV")
         return (200, buffer.getvalue())
     except ToneError as err:
         return (500, {"error": "Invalid syllable", "message": str(err)})
@@ -51,16 +58,15 @@ def app(path):
     except Exception as err:
         return (500, {"error": "Unexpected error", "message": type(err).__name__ + ": " + str(err)})
 
-waitau = None
-hakka = None
+models = {}
 device = "cpu"
 
-def generate_audio(language, text):
-    global waitau, hakka
-    if language == "waitau":
-        if waitau is None: waitau = load_model("data/waitau.pth", "data/config.json", len(waitau_symbols))
-    else:
-        if hakka is None: hakka = load_model("data/hakka.pth", "data/config.json", len(hakka_symbols))
+def generate_audio(language, voice, text):
+    global models
+
+    name = f"{language}_{voice}"
+    if name not in models:
+        models[name] = load_model(f"data/{name}.pth", "data/config.json", len(waitau_symbols if language == "waitau" else hakka_symbols))
 
     phones, tones, word2ph = [pad], [0], [1]
     for syllable in text.split():
@@ -82,7 +88,7 @@ def generate_audio(language, text):
             tones += [tone, tone]
             word2ph.append(2)
         else:
-            medial = "i" if initial == "j" else "#"
+            medial = "i" if initial == "y" else "#"
             final_index = index
             if syllable[index] == "i":
                 final_index = next(it, index)
@@ -121,16 +127,12 @@ def generate_audio(language, text):
         del phones
         speakers = torch.LongTensor([0]).to(device)
         audio = (
-            (waitau if language == "waitau" else hakka).infer(
+            models[name].infer(
                 x_tst,
                 x_tst_lengths,
                 speakers,
                 tones,
                 lang_ids,
-                sdp_ratio=0.5,
-                noise_scale=0.6,
-                noise_scale_w=0.9,
-                length_scale=1.0,
             )[0][0, 0]
             .data.cpu()
             .float()
