@@ -36,15 +36,17 @@ def app(path, query):
         function, language, text = path.encode("latin_1").decode().lower().strip("/").split("/")
         if function != "tts" or language not in {"waitau", "hakka"}: raise ValueError("Invalid URI segment")
         voice = parse_qs(query.encode("latin_1").decode().lower(),
-                         keep_blank_values=True, strict_parsing=True, errors="strict").get("voice", "male")
-        if voice not in {"male", "female"}: raise VoiceError()
+                         keep_blank_values=True, strict_parsing=True, errors="strict").get("voice", ["male"])
+        if len(voice) != 1: raise VoiceError(f"Expected at most a single 'voice', received {len(voice)} voices")
+        voice = voice[0]
+        if voice not in {"male", "female"}: raise VoiceError(f"The 'voice' query must be either 'male' or 'female' (defaults to 'male'), received '{voice}'")
     except UnicodeError as err:
         codec, content, start, end, reason = err.args
         content = content[start:end]
         if isinstance(content, bytes): content = content.decode("latin_1")
         return (500, {"error": "Error while decoding URI: invalid characters", "message": content})
-    except VoiceError:
-        return (500, {"error": "Invalid voice", "message": f"The 'voice' query must be either 'male' or 'female' (defaults to 'male'), received '{voice}'"})
+    except VoiceError as err:
+        return (500, {"error": "Invalid voice", "message": str(err)})
     except ValueError:
         return (404, {"error": "Page not found"})
     try:
