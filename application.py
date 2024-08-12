@@ -83,7 +83,7 @@ def generate_audio(language, voice, text):
             raise ToneError(f"'{syllable}' does not end with tone 0~6") from err
         it = (i for i, c in enumerate(syllable) if c in "aeiouäöüæ")
         index = next(it, 0)
-        initial = syllable[:index] or syllable[index]
+        initial = syllable[:index]
         if language == "waitau":
             final = syllable[index:-1]
             phones += [initial, final]
