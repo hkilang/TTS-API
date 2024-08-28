@@ -746,7 +746,7 @@ class SynthesizerTrn(nn.Module):
         tone,
         language,
         noise_scale=0.8,
-        length_scale=1.0,
+        speed=1.0,
         noise_scale_w=0.6,
         max_len=None,
         sdp_ratio=1.0,
@@ -764,7 +764,7 @@ class SynthesizerTrn(nn.Module):
         logw = self.sdp(x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w) * (
             sdp_ratio
         ) + self.dp(x, x_mask, g=g) * (1 - sdp_ratio)
-        w = torch.exp(logw) * x_mask * length_scale
+        w = torch.exp(logw) * x_mask / speed
         w_ceil = torch.ceil(w)
         y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
         y_mask = torch.unsqueeze(commons.sequence_mask(y_lengths, None), 1).to(
