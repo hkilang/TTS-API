@@ -10,7 +10,7 @@ from commons import intersperse
 from symbols import pad, waitau_symbols, hakka_symbols, waitau_symbol_to_id, hakka_symbol_to_id
 from utils import load_model
 
-class VoiceError(Exception): pass
+class QueryError(Exception): pass
 class ToneError(Exception): pass
 class SymbolError(Exception): pass
 
@@ -35,23 +35,32 @@ def app(path, query):
     try:
         function, language, text = path.encode("latin_1").decode().lower().strip("/").split("/")
         if function != "tts" or language not in {"waitau", "hakka"}: raise ValueError("Invalid URI segment")
-        voice = parse_qs(query.encode("latin_1").decode().lower(),
-                         keep_blank_values=True, strict_parsing=True, errors="strict").get("voice", ["male"])
-        if len(voice) != 1: raise VoiceError(f"Expected at most a single 'voice', received {len(voice)} voices")
+        options = parse_qs(query.encode("latin_1").decode().lower(),
+                           keep_blank_values=True, strict_parsing=True, errors="strict")
+        voice = options.get("voice", ["male"])
+        if len(voice) != 1: raise QueryError(f"Expected at most a single 'voice', received {len(voice)} values")
         voice = voice[0]
-        if voice not in {"male", "female"}: raise VoiceError(f"The 'voice' query must be either 'male' or 'female' (defaults to 'male'), received '{voice}'")
+        if voice not in {"male", "female"}: raise QueryError(f"The 'voice' query must be either 'male' or 'female' (defaults to 'male'), received '{voice}'")
+        speed = options.get("speed", ["1"])
+        if len(speed) != 1: raise QueryError(f"Expected at most a single 'speed', received {len(speed)} values")
+        speed = speed[0]
+        try:
+            speed = float(speed)
+            if speed < 0.5 or speed > 2: raise ValueError("Value out of range")
+        except ValueError:
+            raise QueryError(f"The 'speed' query must be a decimal number between 0.5 and 2 (defaults to 1), received '{speed}'")
     except UnicodeError as err:
         codec, content, start, end, reason = err.args
         content = content[start:end]
         if isinstance(content, bytes): content = content.decode("latin_1")
         return (500, {"error": "Error while decoding URI: invalid characters", "message": content})
-    except VoiceError as err:
-        return (500, {"error": "Invalid voice", "message": str(err)})
+    except QueryError as err:
+        return (500, {"error": "Invalid option", "message": str(err)})
     except ValueError:
         return (404, {"error": "Page not found"})
     try:
         buffer = BytesIO()
-        sf.write(buffer, generate_audio(language, voice, text.replace("+", " ")), 44100, format="WAV")
+        sf.write(buffer, generate_audio(language, voice, text.replace("+", " "), speed), 44100, format="WAV")
         return (200, buffer.getvalue())
     except ToneError as err:
         return (500, {"error": "Invalid syllable", "message": str(err)})
@@ -63,7 +72,7 @@ def app(path, query):
 models = {}
 device = "cpu"
 
-def generate_audio(language, voice, text):
+def generate_audio(language, voice, text, speed):
     global models
 
     name = f"{language}_{voice}"
@@ -135,6 +144,7 @@ def generate_audio(language, voice, text):
                 speakers,
                 tones,
                 lang_ids,
+                speed=speed,
             )[0][0, 0]
             .data.cpu()
             .float()
